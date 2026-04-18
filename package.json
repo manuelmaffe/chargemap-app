@@ -1,7 +1,7 @@
 {
-  "name": "chargemap",
+  "name": "voltio",
   "version": "1.0.0",
-  "description": "ChargeMap — Mapa de estaciones de carga EV con reservas y billetera",
+  "description": "Voltio — Mapa de estaciones de carga EV con reservas y billetera",
   "scripts": {
     "dev": "npx serve public -l 3000",
     "build": "echo 'Static site — no build needed'",

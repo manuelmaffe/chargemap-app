@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="ChargeMap — Encontrá y reservá estaciones de carga para vehículos eléctricos">
+<meta name="description" content="Voltio — Encontrá y reservá estaciones de carga para vehículos eléctricos">
 <meta name="theme-color" content="#0a0e17">
-<title>ChargeMap — Estaciones de carga EV</title>
+<title>Voltio — Estaciones de carga EV</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
@@ -308,7 +308,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
   <div class="login-card">
     <div class="login-logo">
       <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#0a0e17" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-      <div class="logo-text">Charge<span>Map</span></div>
+      <div class="logo-text">Volt<span>io</span></div>
     </div>
     <p class="login-subtitle">Iniciá sesión para reservar puntos de carga</p>
     <div class="login-form">
@@ -352,7 +352,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
   </button>
   <div class="logo">
     <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#0a0e17" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-    <div class="logo-text">Charge<span>Map</span></div>
+    <div class="logo-text">Volt<span>io</span></div>
   </div>
   <div class="search-container">
     <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -549,7 +549,7 @@ function doLogin(){
   saveSession();applySession();
 }
 function doGoogleLogin(){
-  currentUser={name:'Usuario Demo',email:'demo@chargemap.com',initials:'UD'};
+  currentUser={name:'Usuario Demo',email:'demo@voltio.app',initials:'UD'};
   walletBalance=5000;
   transactions=[{type:'topup',label:'Carga inicial de bienvenida',amount:5000,date:new Date().toISOString()}];
   saveSession();applySession();

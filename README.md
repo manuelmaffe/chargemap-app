@@ -1,4 +1,4 @@
-# ChargeMap ⚡
+# Voltio ⚡
 
 Mapa interactivo de estaciones de carga para vehículos eléctricos con sistema de reservas y billetera virtual.
 
