@@ -25,7 +25,8 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
 /* ═══ MAP ═══ */
 #map{position:absolute;inset:0;z-index:1;background:var(--bg)}
 .leaflet-tile-pane{filter:brightness(.7) contrast(1.2) saturate(.25) hue-rotate(180deg) invert(1)}
-.leaflet-control-zoom a{background:var(--glass)!important;backdrop-filter:blur(16px);color:var(--t1)!important;border-color:var(--border)!important}
+.leaflet-top.leaflet-right{top:74px}
+.leaflet-control-zoom a{background:var(--glass)!important;backdrop-filter:blur(16px);color:var(--t1)!important;border-color:var(--border)!important;font-size:20px!important;font-weight:600!important;line-height:30px!important}
 .leaflet-control-zoom a:hover{background:rgba(34,211,167,.15)!important}
 .leaflet-control-attribution{font-size:9px!important;opacity:.5}
 
@@ -127,8 +128,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
 .wallet-action-btn{flex:1;padding:9px;border-radius:9px;border:none;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:5px}
 .wallet-action-btn:hover{opacity:.9}
 .wa-topup{background:var(--accent);color:#0a0e17}
-.wa-transfer{background:rgba(255,255,255,.06);color:var(--t2);border:1px solid var(--border)}
-.wa-transfer:hover{border-color:var(--accent);color:var(--t1)}
 
 .wallet-section-title{font-size:12px;font-weight:600;color:var(--t2);padding:14px 8px 8px;display:flex;align-items:center;gap:6px}
 .wallet-section-title svg{width:14px;height:14px;color:var(--muted)}
@@ -244,7 +243,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
 .topup-amt{padding:14px 8px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:#1e293b;cursor:pointer;transition:all .15s;text-align:center}
 .topup-amt:hover{border-color:var(--accent)}
 .topup-amt.selected{border-color:var(--accent);background:#f0fdf4;color:#065f46}
-.topup-amt small{display:block;font-family:'Outfit',sans-serif;font-size:10px;font-weight:400;color:#94a3b8;margin-top:2px}
 .topup-custom{margin-bottom:16px}
 .topup-input-wrap{position:relative}
 .topup-input-wrap span{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:600;color:#64748b;font-size:15px}
@@ -413,10 +411,6 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Cargar saldo
           </button>
-          <button class="wallet-action-btn wa-transfer">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 7l-5-5-5 5M7 17l5 5 5-5"/></svg>
-            Transferir
-          </button>
         </div>
       </div>
     </div>
@@ -492,12 +486,12 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
     <div class="modal-body">
       <div class="form-label" style="margin-bottom:10px">Seleccioná un monto</div>
       <div class="topup-amounts">
-        <button class="topup-amt" onclick="selectAmount(this,1000)">$1.000<small>Básico</small></button>
-        <button class="topup-amt selected" onclick="selectAmount(this,2500)">$2.500<small>Popular</small></button>
-        <button class="topup-amt" onclick="selectAmount(this,5000)">$5.000<small>Premium</small></button>
-        <button class="topup-amt" onclick="selectAmount(this,10000)">$10.000<small>Pro</small></button>
-        <button class="topup-amt" onclick="selectAmount(this,25000)">$25.000<small>Flota</small></button>
-        <button class="topup-amt" onclick="selectAmount(this,0)">Otro<small>Custom</small></button>
+        <button class="topup-amt" onclick="selectAmount(this,1000)">$1.000</button>
+        <button class="topup-amt selected" onclick="selectAmount(this,2500)">$2.500</button>
+        <button class="topup-amt" onclick="selectAmount(this,5000)">$5.000</button>
+        <button class="topup-amt" onclick="selectAmount(this,10000)">$10.000</button>
+        <button class="topup-amt" onclick="selectAmount(this,25000)">$25.000</button>
+        <button class="topup-amt" onclick="selectAmount(this,0)">Otro</button>
       </div>
       <div class="topup-custom" id="topupCustom" style="display:none">
         <div class="form-label">Monto personalizado</div>
