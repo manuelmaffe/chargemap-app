@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="ChargeMap — Encontrá y reservá estaciones de carga para vehículos eléctricos">
+<meta name="theme-color" content="#0a0e17">
+<title>ChargeMap — Estaciones de carga EV</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--border:#1e293b;
+  --accent:#22d3a7;--blue:#3b82f6;--yellow:#facc15;--red:#ef4444;--purple:#a78bfa;
+  --t1:#f1f5f9;--t2:#94a3b8;--muted:#64748b;
+  --glass:rgba(17,24,39,0.88);
+}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height:100vh;width:100vw;overflow:hidden}
+
+/* ═══ MAP ═══ */
+#map{position:absolute;inset:0;z-index:1;background:var(--bg)}
+.leaflet-tile-pane{filter:brightness(.7) contrast(1.2) saturate(.25) hue-rotate(180deg) invert(1)}
+.leaflet-control-zoom a{background:var(--glass)!important;backdrop-filter:blur(16px);color:var(--t1)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:rgba(34,211,167,.15)!important}
+.leaflet-control-attribution{font-size:9px!important;opacity:.5}
+
+/* ═══ TOP BAR ═══ */
+.top-bar{position:absolute;top:0;left:0;right:0;z-index:900;display:flex;align-items:center;gap:14px;padding:14px 20px;background:linear-gradient(to bottom,rgba(10,14,23,.95) 60%,transparent);pointer-events:none}
+.top-bar>*{pointer-events:auto}
+.hamburger{width:38px;height:38px;border-radius:10px;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);color:var(--t1);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;position:relative}
+.hamburger:hover{border-color:var(--accent)}
+.ham-badge{position:absolute;top:-4px;right:-4px;background:var(--accent);color:#0a0e17;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 4px}
+.ham-badge.show{display:flex}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-icon{width:36px;height:36px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(34,211,167,.35)}
+.logo-icon svg{width:20px;height:20px}
+.logo-text{font-weight:700;font-size:17px;letter-spacing:-.5px}
+.logo-text span{color:var(--accent)}
+.search-container{flex:1;max-width:400px;position:relative}
+.search-input{width:100%;padding:11px 14px 11px 38px;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:11px;color:var(--t1);font-family:'Outfit',sans-serif;font-size:13.5px;outline:none;transition:border-color .2s,box-shadow .2s}
+.search-input::placeholder{color:var(--muted)}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,167,.12)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search-results{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#111827;border:1px solid var(--border);border-radius:10px;max-height:250px;overflow-y:auto;display:none;z-index:999}
+.search-results.visible{display:block}
+.sr-item{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--t2);transition:background .15s}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:rgba(34,211,167,.08);color:var(--t1)}
+.sr-item strong{color:var(--t1);font-weight:500}
+.filters{display:flex;gap:6px}
+.filter-btn{padding:9px 14px;border-radius:9px;border:1px solid var(--border);background:var(--glass);backdrop-filter:blur(20px);color:var(--t2);font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
+.filter-btn:hover{border-color:var(--accent);color:var(--t1)}
+.filter-btn.active{background:rgba(34,211,167,.15);border-color:var(--accent);color:var(--accent)}
+
+/* ═══ SIDEBAR ═══ */
+.sidebar{position:absolute;top:72px;left:14px;bottom:14px;width:360px;z-index:800;background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .35s}
+.sidebar.hidden{transform:translateX(-120%);opacity:0;pointer-events:none}
+.sidebar-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.sidebar-tab{flex:1;padding:12px 8px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .2s}
+.sidebar-tab:hover{color:var(--t2)}
+.sidebar-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.sidebar-tab svg{width:15px;height:15px}
+.tab-badge{background:var(--accent);color:#0a0e17;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 4px}
+.tab-badge.show{display:flex}
+.station-count{font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);background:rgba(34,211,167,.1);padding:2px 7px;border-radius:12px}
+.tab-panel{flex:1;overflow-y:auto;padding:6px;display:none}
+.tab-panel.active{display:block}
+.tab-panel::-webkit-scrollbar{width:4px}
+.tab-panel::-webkit-scrollbar-track{background:transparent}
+.tab-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.list-status{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;color:var(--muted);gap:12px}
+.list-status p{font-size:13px;line-height:1.5}
+
+/* Station cards */
+.station-card{padding:12px 13px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:all .15s;margin-bottom:2px}
+.station-card:hover{background:rgba(255,255,255,.04);border-color:var(--border)}
+.station-card.active{background:rgba(34,211,167,.06);border-color:var(--accent)}
+.s-name{font-weight:600;font-size:13px;margin-bottom:2px;line-height:1.3}
+.s-addr{font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4}
+.s-meta{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.mb{display:flex;align-items:center;gap:3px;font-size:10px;font-weight:500;padding:2px 6px;border-radius:5px}
+.mb-fast{background:rgba(34,211,167,.12);color:var(--accent)}
+.mb-l2{background:rgba(59,130,246,.12);color:var(--blue)}
+.mb-l1{background:rgba(148,163,184,.1);color:var(--t2)}
+.mb-det{color:var(--muted)}
+.mb-dist{color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;margin-left:auto}
+.occ-row{display:flex;align-items:center;gap:8px;margin-top:7px}
+.occ-bar-bg{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.occ-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.occ-label{font-size:9px;font-family:'Space Mono',monospace;white-space:nowrap}
+
+/* Reservation cards */
+.res-card{padding:13px;border-radius:10px;border:1px solid var(--border);margin-bottom:6px;background:rgba(255,255,255,.02);transition:all .15s}
+.res-card:hover{background:rgba(255,255,255,.04)}
+.res-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px}
+.res-card-name{font-weight:600;font-size:13px;line-height:1.3}
+.res-status-badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:rgba(34,211,167,.12);color:var(--accent);white-space:nowrap;flex-shrink:0}
+.res-card-info{font-size:11px;color:var(--muted);margin-bottom:9px;line-height:1.5}
+.res-card-info svg{width:12px;height:12px;vertical-align:-1px;margin-right:3px}
+.res-card-bottom{display:flex;align-items:center;justify-content:space-between}
+.res-card-time{display:flex;align-items:center;gap:5px;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent)}
+.res-card-time svg{width:13px;height:13px}
+.res-actions{display:flex;gap:5px}
+.res-action-btn{padding:5px 9px;border-radius:6px;font-family:'Outfit',sans-serif;font-size:10px;font-weight:500;cursor:pointer;transition:all .15s;border:none;display:flex;align-items:center;gap:3px}
+.res-locate-btn{background:rgba(59,130,246,.12);color:var(--blue)}
+.res-locate-btn:hover{background:rgba(59,130,246,.2)}
+.res-cancel-btn{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+.res-cancel-btn:hover{background:rgba(239,68,68,.2)}
+.res-empty{display:flex;flex-direction:column;align-items:center;padding:50px 24px;text-align:center;gap:14px}
+.res-empty-icon{width:52px;height:52px;border-radius:14px;background:rgba(34,211,167,.08);display:flex;align-items:center;justify-content:center}
+.res-empty-icon svg{width:24px;height:24px;color:var(--accent);opacity:.6}
+.res-empty h4{font-size:14px;font-weight:600;color:var(--t2)}
+.res-empty p{font-size:12px;color:var(--muted);line-height:1.5;max-width:220px}
+
+/* ═══ WALLET ═══ */
+.wallet-header{padding:16px 14px;text-align:center;border-bottom:1px solid var(--border)}
+.wallet-balance-card{background:linear-gradient(135deg,rgba(34,211,167,.1),rgba(59,130,246,.08));border:1px solid rgba(34,211,167,.2);border-radius:12px;padding:20px 16px;margin-bottom:4px}
+.wallet-balance-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.wallet-balance-amount{font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:var(--accent);line-height:1}
+.wallet-balance-amount small{font-size:16px;font-weight:400;color:var(--t2);margin-left:2px}
+.wallet-actions{display:flex;gap:8px;margin-top:14px}
+.wallet-action-btn{flex:1;padding:9px;border-radius:9px;border:none;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.wallet-action-btn:hover{opacity:.9}
+.wa-topup{background:var(--accent);color:#0a0e17}
+.wa-transfer{background:rgba(255,255,255,.06);color:var(--t2);border:1px solid var(--border)}
+.wa-transfer:hover{border-color:var(--accent);color:var(--t1)}
+
+.wallet-section-title{font-size:12px;font-weight:600;color:var(--t2);padding:14px 8px 8px;display:flex;align-items:center;gap:6px}
+.wallet-section-title svg{width:14px;height:14px;color:var(--muted)}
+
+.tx-card{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:8px;transition:background .15s;margin-bottom:2px}
+.tx-card:hover{background:rgba(255,255,255,.03)}
+.tx-icon{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tx-icon svg{width:16px;height:16px}
+.tx-icon-topup{background:rgba(34,211,167,.1);color:var(--accent)}
+.tx-icon-charge{background:rgba(59,130,246,.1);color:var(--blue)}
+.tx-icon-reserve{background:rgba(167,139,250,.1);color:var(--purple)}
+.tx-info{flex:1;min-width:0}
+.tx-label{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-date{font-size:10px;color:var(--muted)}
+.tx-amount{font-family:'Space Mono',monospace;font-size:12px;font-weight:600;flex-shrink:0}
+.tx-amount.positive{color:var(--accent)}
+.tx-amount.negative{color:var(--t2)}
+
+.wallet-empty{text-align:center;padding:30px 16px;color:var(--muted);font-size:12px}
+
+/* ═══ SIDEBAR FOOTER ═══ */
+.sidebar-footer{padding:10px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sf-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#0a0e17;font-family:'Outfit',sans-serif;text-transform:uppercase;flex-shrink:0}
+.sf-info{flex:1;min-width:0}
+.sf-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf-email{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sf-logout{padding:6px 10px;border-radius:7px;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);color:var(--red);font-family:'Outfit',sans-serif;font-size:10px;font-weight:500;cursor:pointer;transition:all .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
+.sf-logout:hover{background:rgba(239,68,68,.15)}
+.sf-logout svg{width:13px;height:13px}
+
+/* ═══ FLOATS ═══ */
+.float-btns{position:absolute;bottom:20px;right:16px;z-index:800;display:flex;flex-direction:column;gap:10px}
+.float-btn{width:44px;height:44px;border-radius:12px;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--border);color:var(--t1);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.float-btn:hover{border-color:var(--accent);background:rgba(34,211,167,.12);transform:scale(1.06)}
+.float-btn.spin svg{animation:spin .8s linear infinite}
+
+/* ═══ POPUP ═══ */
+.leaflet-popup-content-wrapper{border-radius:14px!important;box-shadow:0 8px 32px rgba(0,0,0,.25)!important;padding:0!important;overflow:hidden}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.leaflet-popup-close-button{color:#94a3b8!important;font-size:20px!important;top:8px!important;right:10px!important;z-index:10}
+.pop{font-family:'Outfit',sans-serif;min-width:270px;max-width:330px}
+.pop-head{padding:14px 16px 10px}
+.pop h3{font-size:13.5px;font-weight:600;margin-bottom:3px;color:#1e293b;line-height:1.3;padding-right:22px}
+.pop .pop-op{font-size:11px;color:#94a3b8;margin-bottom:3px}
+.pop .pop-addr{font-size:11.5px;color:#64748b;margin-bottom:9px;line-height:1.4}
+.pop .pop-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+.pt{font-size:10px;font-weight:600;padding:3px 7px;border-radius:5px}
+.pt-fast{background:#d1fae5;color:#065f46}
+.pt-l2{background:#dbeafe;color:#1e40af}
+.pt-l1{background:#f1f5f9;color:#475569}
+.pop .pop-info{font-size:11px;color:#64748b;line-height:1.5}
+.pop .pop-info strong{color:#334155}
+.pop-occ{background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px}
+.pop-occ-title{font-size:11.5px;font-weight:600;color:#334155;margin-bottom:9px;display:flex;align-items:center;gap:5px}
+.occ-slots{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
+.occ-slot{width:38px;height:38px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:8px;font-weight:600;gap:1px;transition:all .15s}
+.occ-slot svg{width:15px;height:15px}
+.slot-free{background:#d1fae5;color:#065f46;cursor:pointer;border:2px solid transparent}
+.slot-free:hover{border-color:#22d3a7;transform:scale(1.08)}
+.slot-busy{background:#fee2e2;color:#991b1b}
+.slot-reserved{background:#fef3c7;color:#92400e}
+.slot-mine{background:#dbeafe;color:#1e40af;border:2px solid #3b82f6}
+.occ-legend{display:flex;gap:10px;margin-bottom:10px}
+.occ-leg-item{display:flex;align-items:center;gap:3px;font-size:9px;color:#64748b}
+.occ-leg-dot{width:7px;height:7px;border-radius:2px}
+.pop-acts{padding:0 16px 14px;display:flex;gap:7px}
+.pb{display:inline-flex;align-items:center;gap:4px;padding:7px 12px;border-radius:7px;font-size:11.5px;font-weight:500;font-family:'Outfit',sans-serif;text-decoration:none;border:none;cursor:pointer;transition:all .15s}
+.pb:hover{opacity:.85}
+.pb-pri{background:#111827;color:#fff}
+.pb-sec{background:#f1f5f9;color:#334155}
+
+/* ═══ MODALS ═══ */
+.modal-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;animation:fadeIn .2s}
+.modal-overlay.show{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:#fff;border-radius:16px;width:90%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;animation:slideUp .3s cubic-bezier(.4,0,.2,1)}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+.modal-header{padding:18px 22px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:15px;font-weight:600;color:#1e293b}
+.modal-close{background:none;border:none;color:#94a3b8;cursor:pointer;padding:4px;display:flex;border-radius:6px;transition:background .15s}
+.modal-close:hover{background:#f1f5f9;color:#334155}
+.modal-body{padding:18px 22px}
+.modal-station{font-size:13px;color:#64748b;margin-bottom:14px}
+.modal-station strong{color:#1e293b;display:block;font-size:14px;margin-bottom:2px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:600;color:#475569;margin-bottom:5px}
+.form-row{display:flex;gap:10px}
+.form-input{width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-family:'Outfit',sans-serif;font-size:13px;color:#1e293b;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--accent)}
+.form-select{width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:9px;font-family:'Outfit',sans-serif;font-size:13px;color:#1e293b;outline:none;background:#fff;cursor:pointer}
+.form-select:focus{border-color:var(--accent)}
+.modal-slot-info{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:#166534}
+.modal-slot-info svg{flex-shrink:0}
+.modal-footer{padding:0 22px 18px;display:flex;gap:10px}
+.btn{flex:1;padding:10px;border-radius:10px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s}
+.btn:hover{opacity:.9}
+.btn-primary{background:#111827;color:#fff}
+.btn-cancel{background:#f1f5f9;color:#475569}
+.btn-accent{background:var(--accent);color:#0a0e17}
+
+/* Top-up amounts */
+.topup-amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.topup-amt{padding:14px 8px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:#1e293b;cursor:pointer;transition:all .15s;text-align:center}
+.topup-amt:hover{border-color:var(--accent)}
+.topup-amt.selected{border-color:var(--accent);background:#f0fdf4;color:#065f46}
+.topup-amt small{display:block;font-family:'Outfit',sans-serif;font-size:10px;font-weight:400;color:#94a3b8;margin-top:2px}
+.topup-custom{margin-bottom:16px}
+.topup-input-wrap{position:relative}
+.topup-input-wrap span{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-weight:600;color:#64748b;font-size:15px}
+.topup-custom .form-input{padding-left:28px;font-family:'Space Mono',monospace;font-size:16px;font-weight:600}
+.topup-methods{display:flex;gap:8px;margin-bottom:16px}
+.topup-method{flex:1;padding:10px;border-radius:9px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;transition:all .15s;text-align:center;font-size:11px;font-weight:500;color:#64748b;display:flex;flex-direction:column;align-items:center;gap:4px}
+.topup-method:hover{border-color:var(--accent)}
+.topup-method.selected{border-color:var(--accent);background:#f0fdf4;color:#065f46}
+.topup-method svg{width:20px;height:20px}
+
+/* ═══ LOGIN ═══ */
+.login-screen{position:fixed;inset:0;z-index:5000;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .5s}
+.login-screen.gone{opacity:0;pointer-events:none}
+.login-card{width:92%;max-width:400px;background:rgba(17,24,39,.7);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:20px;padding:36px 28px 28px;animation:slideUp .4s cubic-bezier(.4,0,.2,1)}
+.login-logo{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:8px}
+.login-logo .logo-icon{width:44px;height:44px;border-radius:12px}
+.login-logo .logo-icon svg{width:24px;height:24px}
+.login-logo .logo-text{font-size:22px}
+.login-subtitle{text-align:center;font-size:13px;color:var(--muted);margin-bottom:28px}
+.login-form{display:flex;flex-direction:column;gap:12px}
+.login-field{position:relative}
+.login-field svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);width:18px;height:18px}
+.login-input{width:100%;padding:12px 14px 12px 44px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;color:var(--t1);font-family:'Outfit',sans-serif;font-size:13.5px;outline:none;transition:border-color .2s,box-shadow .2s}
+.login-input::placeholder{color:var(--muted)}
+.login-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,167,.1)}
+.login-btn{padding:13px;border-radius:11px;border:none;background:var(--accent);color:#0a0e17;font-family:'Outfit',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:2px}
+.login-btn:hover{opacity:.9;transform:translateY(-1px)}
+.login-error{font-size:12px;color:var(--red);text-align:center;min-height:16px;margin-top:1px}
+.login-divider{display:flex;align-items:center;gap:12px;margin:16px 0 12px}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.login-divider span{font-size:11px;color:var(--muted);white-space:nowrap}
+.login-alt-btn{width:100%;padding:11px;border-radius:11px;border:1px solid var(--border);background:transparent;color:var(--t2);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-alt-btn:hover{border-color:var(--accent);color:var(--t1)}
+.login-footer{text-align:center;margin-top:18px;font-size:12px;color:var(--muted)}
+.login-footer a{color:var(--accent);text-decoration:none}
+
+/* ═══ TOAST ═══ */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);z-index:3000;padding:11px 18px;background:#111827;color:#fff;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:8px;opacity:0;transition:all .3s cubic-bezier(.4,0,.2,1);pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══ LOADING ═══ */
+.loading-overlay{position:absolute;inset:0;z-index:2000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s}
+.loading-overlay.gone{opacity:0;pointer-events:none}
+.spinner{border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+.big-sp{width:44px;height:44px}
+.sm-sp{width:28px;height:28px;border-width:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--t2)}
+
+@media(max-width:768px){
+  .sidebar{left:8px;right:8px;width:auto;top:66px;bottom:8px}
+  .filters{display:none}
+  .top-bar{padding:10px 14px;gap:10px}
+  .search-container{max-width:none}
+  .modal{width:95%;max-width:none}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#0a0e17" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      <div class="logo-text">Charge<span>Map</span></div>
+    </div>
+    <p class="login-subtitle">Iniciá sesión para reservar puntos de carga</p>
+    <div class="login-form">
+      <div class="login-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+        <input class="login-input" id="loginName" type="text" placeholder="Nombre completo" autocomplete="name"/>
+      </div>
+      <div class="login-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7"/></svg>
+        <input class="login-input" id="loginEmail" type="email" placeholder="Email" autocomplete="email"/>
+      </div>
+      <div class="login-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <input class="login-input" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password"/>
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button class="login-btn" onclick="doLogin()">Iniciar sesión</button>
+      <div class="login-divider"><span>o continuá con</span></div>
+      <button class="login-alt-btn" onclick="doGoogleLogin()">
+        <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Continuar con Google
+      </button>
+    </div>
+    <div class="login-footer">¿No tenés cuenta? <a href="#" onclick="doLogin()">Registrate gratis</a></div>
+  </div>
+</div>
+
+<!-- LOADER -->
+<div class="loading-overlay" id="loader">
+  <div class="spinner big-sp"></div>
+  <div class="loading-text">Cargando mapa y buscando estaciones...</div>
+</div>
+
+<div id="map"></div>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <button class="hamburger" onclick="toggleSidebar()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    <span class="ham-badge" id="hamBadge">0</span>
+  </button>
+  <div class="logo">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#0a0e17" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+    <div class="logo-text">Charge<span>Map</span></div>
+  </div>
+  <div class="search-container">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input class="search-input" id="searchInput" type="text" placeholder="Buscar ciudad o dirección..." autocomplete="off"/>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">Todas</button>
+    <button class="filter-btn" data-filter="fast">⚡ Rápida</button>
+    <button class="filter-btn" data-filter="level2">🔋 Nivel 2</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar hidden" id="sidebar">
+  <div class="sidebar-tabs">
+    <button class="sidebar-tab active" data-tab="stations" onclick="switchTab('stations')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Estaciones
+      <span class="station-count" id="stationCount">—</span>
+    </button>
+    <button class="sidebar-tab" data-tab="reservations" onclick="switchTab('reservations')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Reservas
+      <span class="tab-badge" id="resBadge">0</span>
+    </button>
+    <button class="sidebar-tab" data-tab="wallet" onclick="switchTab('wallet')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5"/></svg>
+      Billetera
+    </button>
+  </div>
+
+  <!-- Stations -->
+  <div class="tab-panel active" id="panelStations">
+    <div class="list-status"><div class="spinner sm-sp"></div><p>Buscando estaciones...</p></div>
+  </div>
+
+  <!-- Reservations -->
+  <div class="tab-panel" id="panelReservations">
+    <div class="res-empty" id="resEmpty">
+      <div class="res-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+      <h4>Sin reservas activas</h4>
+      <p>Buscá una estación, tocá un punto de carga libre y reservalo.</p>
+    </div>
+    <div id="resListContainer"></div>
+  </div>
+
+  <!-- Wallet -->
+  <div class="tab-panel" id="panelWallet">
+    <div class="wallet-header">
+      <div class="wallet-balance-card">
+        <div class="wallet-balance-label">Saldo disponible</div>
+        <div class="wallet-balance-amount" id="walletBalance">$0<small>.00</small></div>
+        <div class="wallet-actions">
+          <button class="wallet-action-btn wa-topup" onclick="openTopup()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Cargar saldo
+          </button>
+          <button class="wallet-action-btn wa-transfer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M17 7l-5-5-5 5M7 17l5 5 5-5"/></svg>
+            Transferir
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="wallet-section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Movimientos
+    </div>
+    <div id="txList">
+      <div class="wallet-empty">Todavía no tenés movimientos</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="sidebar-footer" id="sidebarFooter" style="display:none">
+    <div class="sf-avatar" id="sfAvatar"></div>
+    <div class="sf-info">
+      <div class="sf-name" id="sfName"></div>
+      <div class="sf-email" id="sfEmail"></div>
+    </div>
+    <button class="sf-logout" onclick="doLogout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Salir
+    </button>
+  </div>
+</div>
+
+<!-- FLOATS -->
+<div class="float-btns">
+  <button class="float-btn" id="refreshBtn" title="Buscar en esta zona" onclick="searchHere()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.22-8.56"/><path d="M21 3v5h-5"/></svg></button>
+  <button class="float-btn" id="locBtn" title="Mi ubicación" onclick="geolocate()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+</div>
+
+<!-- RESERVATION MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Reservar punto de carga</h3>
+      <button class="modal-close" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-station" id="modalStation"></div>
+      <div class="modal-slot-info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span id="modalSlotLabel"></span></div>
+      <div class="form-group"><label class="form-label">Fecha</label><input class="form-input" type="date" id="resDate"/></div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1"><label class="form-label">Hora inicio</label><select class="form-select" id="resTimeStart"></select></div>
+        <div class="form-group" style="flex:1"><label class="form-label">Duración</label><select class="form-select" id="resDuration"><option value="30">30 min</option><option value="60" selected>1 hora</option><option value="90">1h 30min</option><option value="120">2 horas</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Vehículo (opcional)</label><input class="form-input" type="text" id="resVehicle" placeholder="Ej: Tesla Model 3"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmReservation()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOP-UP MODAL -->
+<div class="modal-overlay" id="topupOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Cargar saldo</h3>
+      <button class="modal-close" onclick="closeTopup()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-label" style="margin-bottom:10px">Seleccioná un monto</div>
+      <div class="topup-amounts">
+        <button class="topup-amt" onclick="selectAmount(this,1000)">$1.000<small>Básico</small></button>
+        <button class="topup-amt selected" onclick="selectAmount(this,2500)">$2.500<small>Popular</small></button>
+        <button class="topup-amt" onclick="selectAmount(this,5000)">$5.000<small>Premium</small></button>
+        <button class="topup-amt" onclick="selectAmount(this,10000)">$10.000<small>Pro</small></button>
+        <button class="topup-amt" onclick="selectAmount(this,25000)">$25.000<small>Flota</small></button>
+        <button class="topup-amt" onclick="selectAmount(this,0)">Otro<small>Custom</small></button>
+      </div>
+      <div class="topup-custom" id="topupCustom" style="display:none">
+        <div class="form-label">Monto personalizado</div>
+        <div class="topup-input-wrap"><span>$</span><input class="form-input" type="number" id="topupCustomAmount" placeholder="0" min="100"/></div>
+      </div>
+      <div class="form-label" style="margin-bottom:8px">Método de pago</div>
+      <div class="topup-methods">
+        <div class="topup-method selected" onclick="selectMethod(this,'card')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          Tarjeta
+        </div>
+        <div class="topup-method" onclick="selectMethod(this,'mp')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5"/></svg>
+          MercadoPago
+        </div>
+        <div class="topup-method" onclick="selectMethod(this,'transfer')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/></svg>
+          Transferencia
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeTopup()">Cancelar</button>
+      <button class="btn btn-accent" onclick="confirmTopup()">Cargar saldo</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3a7" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span id="toastMsg"></span></div>
+
+<script>
+// ═══ STATE ═══
+let map,markersGroup,userMarker;
+let allStations=[],activeFilter='all';
+let center={lat:-34.6037,lng:-58.3816};
+let loading=false,searchTimer=null,currentTab='stations';
+let myReservations=[],occupancyData={};
+let pendingReservation={stationId:null,slotIndex:null};
+let currentUser=null;
+let walletBalance=0,transactions=[];
+let selectedTopupAmount=2500,selectedPayMethod='card';
+
+// ═══ AUTH ═══
+function doLogin(){
+  const name=document.getElementById('loginName').value.trim();
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const err=document.getElementById('loginError');
+  if(!name){err.textContent='Ingresá tu nombre';return}
+  if(!email||!email.includes('@')){err.textContent='Ingresá un email válido';return}
+  if(!pass||pass.length<3){err.textContent='Ingresá tu contraseña';return}
+  err.textContent='';
+  currentUser={name,email,initials:name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()};
+  saveSession();applySession();
+}
+function doGoogleLogin(){
+  currentUser={name:'Usuario Demo',email:'demo@chargemap.com',initials:'UD'};
+  walletBalance=5000;
+  transactions=[{type:'topup',label:'Carga inicial de bienvenida',amount:5000,date:new Date().toISOString()}];
+  saveSession();applySession();
+}
+function doLogout(){
+  currentUser=null;myReservations=[];occupancyData={};walletBalance=0;transactions=[];
+  sessionStorage.removeItem('cm_session');
+  document.getElementById('loginScreen').classList.remove('gone');
+  document.getElementById('loginName').value='';document.getElementById('loginEmail').value='';document.getElementById('loginPass').value='';document.getElementById('loginError').textContent='';
+  document.getElementById('sidebarFooter').style.display='none';
+  document.getElementById('sidebar').classList.add('hidden');
+  updateResUI();updateWalletUI();showToast('Sesión cerrada');
+}
+function saveSession(){
+  sessionStorage.setItem('cm_session',JSON.stringify({user:currentUser,balance:walletBalance,tx:transactions,res:myReservations}));
+}
+function restoreSession(){
+  try{const s=JSON.parse(sessionStorage.getItem('cm_session'));if(s&&s.user){currentUser=s.user;walletBalance=s.balance||0;transactions=s.tx||[];myReservations=s.res||[];return true}}catch(e){}return false;
+}
+function applySession(){
+  if(!currentUser)return;
+  document.getElementById('loginScreen').classList.add('gone');
+  document.getElementById('sfAvatar').textContent=currentUser.initials;
+  document.getElementById('sfName').textContent=currentUser.name;
+  document.getElementById('sfEmail').textContent=currentUser.email;
+  document.getElementById('sidebarFooter').style.display='flex';
+  updateWalletUI();updateResUI();
+}
+
+// ═══ TABS ═══
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('hidden')}
+function switchTab(t){
+  currentTab=t;
+  document.querySelectorAll('.sidebar-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
+  ['panelStations','panelReservations','panelWallet'].forEach(p=>{
+    const tab=p.replace('panel','').toLowerCase();
+    document.getElementById(p).classList.toggle('active',tab===t);
+  });
+}
+
+// ═══ WALLET ═══
+function updateWalletUI(){
+  const int=Math.floor(walletBalance);
+  const dec=((walletBalance%1)*100).toFixed(0).padStart(2,'0');
+  document.getElementById('walletBalance').innerHTML=`$${int.toLocaleString('es-AR')}<small>.${dec}</small>`;
+  const list=document.getElementById('txList');
+  if(!transactions.length){list.innerHTML='<div class="wallet-empty">Todavía no tenés movimientos</div>';return}
+  list.innerHTML=transactions.slice().reverse().map(tx=>{
+    const isPos=tx.amount>0;
+    const iconCls=tx.type==='topup'?'tx-icon-topup':tx.type==='reserve'?'tx-icon-reserve':'tx-icon-charge';
+    const iconSvg=tx.type==='topup'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      :tx.type==='reserve'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>'
+      :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+    const d=new Date(tx.date);
+    const ds=`${d.getDate()}/${d.getMonth()+1} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div class="tx-card"><div class="tx-icon ${iconCls}">${iconSvg}</div><div class="tx-info"><div class="tx-label">${tx.label}</div><div class="tx-date">${ds}</div></div><div class="tx-amount ${isPos?'positive':'negative'}">${isPos?'+':''}$${Math.abs(tx.amount).toLocaleString('es-AR')}</div></div>`;
+  }).join('');
+}
+function openTopup(){document.getElementById('topupOverlay').classList.add('show')}
+function closeTopup(){document.getElementById('topupOverlay').classList.remove('show')}
+function selectAmount(el,amt){
+  document.querySelectorAll('.topup-amt').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedTopupAmount=amt;
+  document.getElementById('topupCustom').style.display=amt===0?'block':'none';
+}
+function selectMethod(el,method){
+  document.querySelectorAll('.topup-method').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedPayMethod=method;
+}
+function confirmTopup(){
+  let amt=selectedTopupAmount;
+  if(amt===0) amt=parseFloat(document.getElementById('topupCustomAmount').value)||0;
+  if(amt<100){showToast('El monto mínimo es $100');return}
+  const methods={card:'Tarjeta',mp:'MercadoPago',transfer:'Transferencia'};
+  walletBalance+=amt;
+  transactions.push({type:'topup',label:`Carga via ${methods[selectedPayMethod]}`,amount:amt,date:new Date().toISOString()});
+  saveSession();updateWalletUI();closeTopup();
+  showToast(`+$${amt.toLocaleString('es-AR')} cargados a tu billetera`);
+}
+
+// ═══ OVERPASS ═══
+async function fetchFromOverpass(lat,lng,r){
+  const q=`[out:json][timeout:30];(node["amenity"="charging_station"](around:${r},${lat},${lng});way["amenity"="charging_station"](around:${r},${lat},${lng}););out center body;`;
+  try{const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(!res.ok)throw new Error(res.status);const d=await res.json();return d.elements||[]}catch(e){console.error('Overpass:',e);return[]}
+}
+function parseEl(el){
+  const t=el.tags||{},lat=el.lat||el.center?.lat,lng=el.lon||el.center?.lon;
+  if(!lat||!lng)return null;
+  let level='level2',maxPw=0;const sockets=[];
+  Object.keys(t).filter(k=>k.startsWith('socket:')&&!k.includes(':output')&&!k.includes(':current')).forEach(k=>{const n=k.replace('socket:','').replace(/_/g,' ');if(!sockets.includes(n))sockets.push(n)});
+  Object.keys(t).filter(k=>k.includes(':output')).forEach(k=>{const m=t[k]?.match(/([\d.]+)\s*(kW|MW)/i);if(m){let p=parseFloat(m[1]);if(m[2].toLowerCase()==='mw')p*=1000;if(p>maxPw)maxPw=p}});
+  if(t['charging_station:output']){const m=t['charging_station:output'].match(/([\d.]+)\s*(kW|MW)/i);if(m){let p=parseFloat(m[1]);if(m[2].toLowerCase()==='mw')p*=1000;if(p>maxPw)maxPw=p}}
+  if(maxPw>=50)level='fast';else if(maxPw>0&&maxPw<7)level='level1';
+  if(sockets.some(s=>['ccs','chademo','tesla_supercharger','type2_combo'].some(dc=>s.toLowerCase().includes(dc)))){level='fast';if(!maxPw)maxPw=50}
+  return{id:el.id,name:t.name||t.description||t.operator||'Estación de carga',operator:t.operator||t.network||'',address:[t['addr:street'],t['addr:city']].filter(Boolean).join(', '),lat,lng,level,maxPw,sockets,capacity:parseInt(t.capacity)||null,fee:t.fee==='yes'?'Paga':t.fee==='no'?'Gratis':null,distance:hav(center.lat,center.lng,lat,lng),osmUrl:`https://www.openstreetmap.org/${el.type}/${el.id}`};
+}
+function hav(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dN=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dN/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
+
+// ═══ OCCUPANCY ═══
+function genOcc(s){const tot=s.capacity||Math.floor(Math.random()*6)+2;const sl=[];for(let i=0;i<tot;i++){const x=(s.id*17+i*31)%100;sl.push({status:x<45?'free':x<78?'busy':'reserved',number:i+1})}return{total:tot,slots:sl}}
+function getOcc(s){if(!occupancyData[s.id])occupancyData[s.id]=genOcc(s);const o=occupancyData[s.id];o.slots.forEach((sl,i)=>{const r=myReservations.find(r=>r.stationId===s.id&&r.slotIndex===i);if(r)sl.status='mine';else if(sl.status==='mine')sl.status='free'});return o}
+function occPct(o){return Math.round(o.slots.filter(s=>s.status!=='free').length/o.total*100)}
+function occCol(p){return p<40?'var(--accent)':p<75?'var(--yellow)':'var(--red)'}
+
+// ═══ MAP ═══
+function mkIcon(l){const c={fast:'#22d3a7',level2:'#3b82f6',level1:'#94a3b8'},z={fast:13,level2:10,level1:9},co=c[l]||c.level2,s=z[l]||10;return L.divIcon({className:'',html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${co};border:2px solid ${co};box-shadow:0 0 8px ${co}"></div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]})}
+function initApp(){
+  if(restoreSession())applySession();
+  ['loginName','loginEmail','loginPass'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()}));
+  map=L.map('map',{center:[center.lat,center.lng],zoom:12,zoomControl:false});
+  L.control.zoom({position:'topright'}).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OSM'}).addTo(map);
+  markersGroup=L.layerGroup().addTo(map);
+  document.querySelectorAll('.filter-btn').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeFilter=b.dataset.filter;applyFilter()}));
+  const si=document.getElementById('searchInput');
+  si.addEventListener('input',()=>{clearTimeout(searchTimer);const q=si.value.trim();if(q.length<3){document.getElementById('searchResults').classList.remove('visible');return}searchTimer=setTimeout(()=>geoSearch(q),400)});
+  si.addEventListener('blur',()=>setTimeout(()=>document.getElementById('searchResults').classList.remove('visible'),200));
+  const sel=document.getElementById('resTimeStart');for(let h=6;h<=23;h++)for(let m=0;m<60;m+=30){const v=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;sel.innerHTML+=`<option value="${v}">${v}</option>`}
+  document.getElementById('resDate').valueAsDate=new Date();
+  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>{center={lat:p.coords.latitude,lng:p.coords.longitude};map.setView([center.lat,center.lng],13);setUM(center);loadStations();hideLoader()},()=>{loadStations();hideLoader()},{timeout:6000})}else{loadStations();hideLoader()}
+}
+function hideLoader(){setTimeout(()=>document.getElementById('loader').classList.add('gone'),500)}
+
+// ═══ SEARCH ═══
+async function geoSearch(q){try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`);const res=await r.json();const box=document.getElementById('searchResults');if(!res.length){box.classList.remove('visible');return}box.innerHTML=res.map(r=>`<div class="sr-item" onmousedown="pickR(${r.lat},${r.lon},'${r.display_name.replace(/'/g,"\\'")}')"><strong>${r.display_name.split(',')[0]}</strong><br><span style="font-size:11px;color:var(--muted)">${r.display_name.split(',').slice(1,3).join(',')}</span></div>`).join('');box.classList.add('visible')}catch(e){}}
+function pickR(lat,lon,name){document.getElementById('searchResults').classList.remove('visible');document.getElementById('searchInput').value=name.split(',')[0];center={lat:parseFloat(lat),lng:parseFloat(lon)};map.setView([center.lat,center.lng],13);loadStations()}
+
+// ═══ LOAD ═══
+async function loadStations(){
+  if(loading)return;loading=true;
+  document.getElementById('refreshBtn').classList.add('spin');
+  document.getElementById('panelStations').innerHTML='<div class="list-status"><div class="spinner sm-sp"></div><p>Buscando estaciones...</p></div>';
+  const b=map.getBounds(),ne=b.getNorthEast(),rM=Math.min(hav(center.lat,center.lng,ne.lat,ne.lng)*1000,50000);
+  const raw=await fetchFromOverpass(center.lat,center.lng,Math.max(rM,10000));
+  allStations=raw.map(parseEl).filter(Boolean).sort((a,b)=>a.distance-b.distance);
+  occupancyData={};markersGroup.clearLayers();
+  allStations.forEach(s=>{const m=L.marker([s.lat,s.lng],{icon:mkIcon(s.level)});m._station=s;m.on('click',()=>showPop(s,m));markersGroup.addLayer(m)});
+  applyFilter();loading=false;document.getElementById('refreshBtn').classList.remove('spin');
+}
+
+// ═══ POPUP ═══
+function showPop(s,marker){
+  const o=getOcc(s),dir=`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`;
+  const lvl=s.level==='fast'?'⚡ Rápida (DC)':s.level==='level2'?'🔋 Nivel 2 (AC)':'🔌 Nivel 1';
+  const lc=s.level==='fast'?'pt-fast':s.level==='level2'?'pt-l2':'pt-l1';
+  const pw=s.maxPw>0?` · ${s.maxPw} kW`:'';
+  let inf='';if(s.sockets.length)inf+=`<strong>Conectores:</strong> ${s.sockets.map(x=>x.charAt(0).toUpperCase()+x.slice(1)).join(', ')}<br>`;if(s.fee)inf+=`<strong>Costo:</strong> ${s.fee}<br>`;
+  const fc=o.slots.filter(x=>x.status==='free').length;
+  const ic={free:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',busy:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',reserved:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>',mine:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'};
+  const sl=o.slots.map((x,i)=>{const cl=x.status==='free'?'slot-free':x.status==='busy'?'slot-busy':x.status==='mine'?'slot-mine':'slot-reserved';const ck=x.status==='free'?`onclick="openRes(${s.id},${i})"`:'';return`<div class="occ-slot ${cl}" ${ck}>${ic[x.status]}<span>#${x.number}</span></div>`}).join('');
+  marker.bindPopup(`<div class="pop"><div class="pop-head"><h3>${s.name}</h3>${s.operator&&s.operator!==s.name?`<div class="pop-op">${s.operator}</div>`:''}${s.address?`<div class="pop-addr">${s.address}</div>`:'<div class="pop-addr" style="color:#94a3b8">Sin dirección</div>'}<div class="pop-tags"><span class="pt ${lc}">${lvl}${pw}</span></div>${inf?`<div class="pop-info">${inf}</div>`:''}</div><div class="pop-occ"><div class="pop-occ-title"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>Ocupación — ${fc} de ${o.total} libres</div><div class="occ-slots">${sl}</div><div class="occ-legend"><div class="occ-leg-item"><div class="occ-leg-dot" style="background:#d1fae5"></div> Libre</div><div class="occ-leg-item"><div class="occ-leg-dot" style="background:#fee2e2"></div> En uso</div><div class="occ-leg-item"><div class="occ-leg-dot" style="background:#fef3c7"></div> Reserv.</div><div class="occ-leg-item"><div class="occ-leg-dot" style="background:#dbeafe"></div> Mía</div></div></div><div class="pop-acts"><a class="pb pb-pri" href="${dir}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>Ir</a><a class="pb pb-sec" href="${s.osmUrl}" target="_blank" rel="noopener">OSM</a></div></div>`,{maxWidth:340,closeButton:true}).openPopup();
+  document.querySelectorAll('.station-card').forEach(c=>c.classList.remove('active'));
+  const card=document.querySelector(`[data-sid="${s.id}"]`);if(card){card.classList.add('active');card.scrollIntoView({behavior:'smooth',block:'nearest'})}
+}
+
+// ═══ RESERVATIONS ═══
+function openRes(sid,si){
+  if(!currentUser){showToast('Iniciá sesión para reservar');return}
+  const s=allStations.find(x=>x.id===sid);if(!s)return;
+  pendingReservation={stationId:sid,slotIndex:si};
+  const o=getOcc(s),slot=o.slots[si];
+  document.getElementById('modalStation').innerHTML=`<strong>${s.name}</strong>${s.operator?s.operator+' · ':''}${s.address||''}`;
+  document.getElementById('modalSlotLabel').textContent=`Punto #${slot.number} — Disponible`;
+  document.getElementById('resDate').valueAsDate=new Date();
+  const now=new Date(),mins=now.getMinutes(),nh=mins<30?30:60,def=new Date(now.getTime()+(nh-mins)*60000);
+  document.getElementById('resTimeStart').value=`${String(def.getHours()).padStart(2,'0')}:${String(def.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('show');pendingReservation={stationId:null,slotIndex:null}}
+function confirmReservation(){
+  const{stationId:sid,slotIndex:si}=pendingReservation;if(sid===null)return;
+  const s=allStations.find(x=>x.id===sid),o=getOcc(s),slot=o.slots[si];
+  const date=document.getElementById('resDate').value,time=document.getElementById('resTimeStart').value,dur=document.getElementById('resDuration').value,veh=document.getElementById('resVehicle').value;
+  if(!date||!time){showToast('Completá fecha y hora');return}
+  // Charge fee from wallet
+  const fee=500;
+  if(walletBalance<fee){showToast('Saldo insuficiente — cargá tu billetera');switchTab('wallet');closeModal();return}
+  walletBalance-=fee;
+  transactions.push({type:'reserve',label:`Reserva — ${s.name} #${slot.number}`,amount:-fee,date:new Date().toISOString()});
+  myReservations.push({id:Date.now(),stationId:sid,slotIndex:si,slotNumber:slot.number,stationName:s.name,stationAddress:s.address||s.operator||'',stationLat:s.lat,stationLng:s.lng,date,time,duration:parseInt(dur),vehicle:veh});
+  slot.status='mine';closeModal();
+  showToast(`Reserva confirmada — $${fee} debitados`);
+  saveSession();updateResUI();updateWalletUI();
+  markersGroup.eachLayer(m=>{if(m._station&&m._station.id===sid)showPop(m._station,m)});applyFilter();
+}
+function cancelRes(id){
+  const idx=myReservations.findIndex(r=>r.id===id);if(idx===-1)return;
+  const res=myReservations[idx],o=occupancyData[res.stationId];
+  if(o&&o.slots[res.slotIndex])o.slots[res.slotIndex].status='free';
+  // Refund
+  const refund=500;walletBalance+=refund;
+  transactions.push({type:'topup',label:`Reembolso — ${res.stationName}`,amount:refund,date:new Date().toISOString()});
+  myReservations.splice(idx,1);showToast('Reserva cancelada — $500 reembolsados');
+  saveSession();updateResUI();updateWalletUI();
+  markersGroup.eachLayer(m=>{if(m._station&&m._station.id===res.stationId)showPop(m._station,m)});applyFilter();
+}
+function locateRes(id){
+  const r=myReservations.find(x=>x.id===id);if(!r)return;
+  map.setView([r.stationLat,r.stationLng],16);
+  markersGroup.eachLayer(m=>{if(m._station&&m._station.id===r.stationId)showPop(m._station,m)});switchTab('stations');
+}
+function updateResUI(){
+  const c=myReservations.length;
+  const b=document.getElementById('resBadge');b.textContent=c;b.classList.toggle('show',c>0);
+  const hb=document.getElementById('hamBadge');hb.textContent=c;hb.classList.toggle('show',c>0);
+  const con=document.getElementById('resListContainer'),emp=document.getElementById('resEmpty');
+  if(!c){emp.style.display='flex';con.innerHTML='';return}
+  emp.style.display='none';
+  con.innerHTML=myReservations.map(r=>{const et=addMin(r.time,r.duration);return`<div class="res-card"><div class="res-card-top"><div class="res-card-name">${r.stationName}</div><div class="res-status-badge">Confirmada</div></div><div class="res-card-info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Punto #${r.slotNumber}${r.stationAddress?' · '+r.stationAddress:''}${r.vehicle?' · '+r.vehicle:''}</div><div class="res-card-bottom"><div class="res-card-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${fmtD(r.date)} · ${r.time}–${et}</div><div class="res-actions"><button class="res-action-btn res-locate-btn" onclick="locateRes(${r.id})"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Ver</button><button class="res-action-btn res-cancel-btn" onclick="cancelRes(${r.id})">Cancelar</button></div></div></div>`}).join('');
+}
+function addMin(t,m){const[h,n]=t.split(':').map(Number),d=new Date(2000,0,1,h,n+m);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+function fmtD(s){const[y,m,d]=s.split('-');return`${d}/${m}`}
+function showToast(msg){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
+
+// ═══ FILTER & LIST ═══
+function applyFilter(){
+  let list=allStations;
+  if(activeFilter==='fast')list=allStations.filter(s=>s.level==='fast');
+  else if(activeFilter==='level2')list=allStations.filter(s=>s.level!=='fast');
+  markersGroup.eachLayer(m=>{const show=list.some(s=>s.id===m._station.id);const el=m.getElement?.()||m._icon;if(el)el.style.display=show?'':'none'});
+  renderList(list);
+}
+function renderList(list){
+  const c=document.getElementById('panelStations');
+  if(!list.length){c.innerHTML='<div class="list-status"><p>No se encontraron estaciones.<br>Mové el mapa y tocá 🔄</p></div>';document.getElementById('stationCount').textContent='0';return}
+  document.getElementById('stationCount').textContent=list.length;
+  c.innerHTML=list.map(s=>{
+    const bg=s.level==='fast'?'<span class="mb mb-fast">⚡ DC</span>':s.level==='level2'?'<span class="mb mb-l2">🔋 AC</span>':'<span class="mb mb-l1">🔌 L1</span>';
+    const pw=s.maxPw>0?`<span class="mb mb-det">${s.maxPw} kW</span>`:'';const fe=s.fee?`<span class="mb mb-det">${s.fee}</span>`:'';
+    const di=`<span class="mb mb-dist">${s.distance.toFixed(1)} km</span>`;
+    const o=getOcc(s),p=occPct(o),co=occCol(p),fr=o.slots.filter(x=>x.status==='free').length;
+    return`<div class="station-card" data-sid="${s.id}" onclick="cardClick(${s.id})"><div class="s-name">${s.name}</div><div class="s-addr">${s.operator&&s.operator!==s.name?s.operator+' · ':''}${s.address||'Sin dirección'}</div><div class="s-meta">${bg}${pw}${fe}${di}</div><div class="occ-row"><div class="occ-bar-bg"><div class="occ-bar-fill" style="width:${p}%;background:${co}"></div></div><span class="occ-label" style="color:${co}">${fr}/${o.total} libres</span></div></div>`
+  }).join('');
+}
+function cardClick(id){markersGroup.eachLayer(m=>{if(m._station.id===id){map.setView(m.getLatLng(),Math.max(map.getZoom(),15));showPop(m._station,m)}})}
+
+// ═══ ACTIONS ═══
+function searchHere(){const c=map.getCenter();center={lat:c.lat,lng:c.lng};loadStations()}
+function geolocate(){if(!navigator.geolocation)return alert('Geolocalización no soportada');const b=document.getElementById('locBtn');b.classList.add('spin');navigator.geolocation.getCurrentPosition(p=>{center={lat:p.coords.latitude,lng:p.coords.longitude};map.setView([center.lat,center.lng],13);setUM(center);loadStations();b.classList.remove('spin')},()=>{alert('No se pudo obtener tu ubicación.');b.classList.remove('spin')})}
+function setUM(loc){if(userMarker)map.removeLayer(userMarker);userMarker=L.marker([loc.lat,loc.lng],{icon:L.divIcon({className:'',html:'<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 12px rgba(59,130,246,.5)"></div>',iconSize:[14,14],iconAnchor:[7,7]}),zIndexOffset:1000}).addTo(map)}
+
+document.addEventListener('DOMContentLoaded',initApp);
+</script>
+</body>
+</html>
