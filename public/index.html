@@ -619,8 +619,14 @@ function confirmTopup(){
 
 // ═══ OVERPASS ═══
 async function fetchFromOverpass(lat,lng,r){
-  const q=`[out:json][timeout:30];(node["amenity"="charging_station"](around:${r},${lat},${lng});way["amenity"="charging_station"](around:${r},${lat},${lng}););out center body;`;
-  try{const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(!res.ok)throw new Error(res.status);const d=await res.json();return d.elements||[]}catch(e){console.error('Overpass:',e);return[]}
+  const q=`[out:json][timeout:25];(node["amenity"="charging_station"](around:${r},${lat},${lng});way["amenity"="charging_station"](around:${r},${lat},${lng}););out center body;`;
+  const mirrors=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  let lastErr=null;
+  for(const url of mirrors){
+    try{const res=await fetch(url,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(!res.ok)throw new Error('HTTP '+res.status);const d=await res.json();return{ok:true,elements:d.elements||[]}}
+    catch(e){console.warn('Overpass mirror falló:',url,e.message);lastErr=e}
+  }
+  return{ok:false,elements:[],error:lastErr};
 }
 function parseEl(el){
   const t=el.tags||{},lat=el.lat||el.center?.lat,lng=el.lon||el.center?.lon;
@@ -670,8 +676,15 @@ async function loadStations(){
   document.getElementById('refreshBtn').classList.add('spin');
   document.getElementById('panelStations').innerHTML='<div class="list-status"><div class="spinner sm-sp"></div><p>Buscando estaciones...</p></div>';
   const b=map.getBounds(),ne=b.getNorthEast(),rM=Math.min(hav(center.lat,center.lng,ne.lat,ne.lng)*1000,50000);
-  const raw=await fetchFromOverpass(center.lat,center.lng,Math.max(rM,10000));
-  allStations=raw.map(parseEl).filter(Boolean).sort((a,b)=>a.distance-b.distance);
+  const result=await fetchFromOverpass(center.lat,center.lng,Math.max(rM,10000));
+  if(!result.ok){
+    document.getElementById('panelStations').innerHTML='<div class="list-status"><p>No se pudo conectar con Overpass.<br>Reintentá en unos segundos 🔄</p></div>';
+    document.getElementById('stationCount').textContent='0';
+    markersGroup.clearLayers();
+    loading=false;document.getElementById('refreshBtn').classList.remove('spin');
+    return;
+  }
+  allStations=result.elements.map(parseEl).filter(Boolean).sort((a,b)=>a.distance-b.distance);
   occupancyData={};markersGroup.clearLayers();
   allStations.forEach(s=>{const m=L.marker([s.lat,s.lng],{icon:mkIcon(s.level)});m._station=s;m.on('click',()=>showPop(s,m));markersGroup.addLayer(m)});
   applyFilter();loading=false;document.getElementById('refreshBtn').classList.remove('spin');
