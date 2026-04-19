@@ -150,9 +150,13 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
 .tx-icon-purchase{background:rgba(250,204,21,.1);color:var(--yellow)}
 
 /* ═══ MARKETPLACE ═══ */
-.market-hint{padding:12px 10px 8px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.market-hint svg{width:13px;height:13px;flex-shrink:0;color:var(--accent)}
-.market-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:4px 4px 8px}
+.market-filters{display:flex;gap:6px;padding:10px 6px 8px;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;background:var(--glass);backdrop-filter:blur(16px);z-index:2;border-bottom:1px solid var(--border);margin:-6px -6px 0}
+.market-filters::-webkit-scrollbar{display:none}
+.market-chip{padding:6px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--t2);font-family:'Outfit',sans-serif;font-size:11.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.market-chip:hover{color:var(--t1);border-color:var(--accent)}
+.market-chip.active{background:rgba(34,211,167,.15);border-color:var(--accent);color:var(--accent)}
+.market-empty-filter{text-align:center;padding:30px 16px;color:var(--muted);font-size:12.5px;grid-column:1/-1}
+.market-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:8px 4px}
 .product-card{position:relative;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:11px;padding:10px 10px 12px;display:flex;flex-direction:column;gap:5px;transition:border-color .15s}
 .product-card:hover{border-color:var(--accent)}
 .product-img{font-size:34px;text-align:center;padding:14px 0 10px;background:linear-gradient(135deg,rgba(34,211,167,.04),rgba(59,130,246,.04));border-radius:8px;line-height:1}
@@ -485,10 +489,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--t1);height
 
   <!-- Market -->
   <div class="tab-panel" id="panelMarket">
-    <div class="market-hint">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      Accesorios para carga EV · Tocá + para agregar al carrito
-    </div>
+    <div class="market-filters" id="marketFilters"></div>
     <div class="market-grid" id="marketGrid"></div>
     <button class="market-cart-fab" id="cartFab" onclick="openCart()">
       <span style="display:flex;align-items:center;gap:8px">
@@ -626,7 +627,7 @@ let pendingReservation={stationId:null,slotIndex:null};
 let currentUser=null;
 let walletBalance=0,transactions=[];
 let selectedTopupAmount=2500,selectedPayMethod='card';
-let cart={};
+let cart={},marketFilter='all';
 const PRODUCTS=[
   {id:'p1',cat:'Cables',name:'Cable Tipo 2 · 7,4 kW · 5m',price:45000,icon:'🔌'},
   {id:'p2',cat:'Cables',name:'Cable CCS2 · 50 kW DC',price:120000,icon:'⚡'},
@@ -768,7 +769,7 @@ function occCol(p){return p<40?'var(--accent)':p<75?'var(--yellow)':'var(--red)'
 function mkIcon(l){const c={fast:'#22d3a7',level2:'#3b82f6',level1:'#94a3b8'},z={fast:13,level2:10,level1:9},co=c[l]||c.level2,s=z[l]||10;return L.divIcon({className:'',html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${co};border:2px solid ${co};box-shadow:0 0 8px ${co}"></div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]})}
 function initApp(){
   if(restoreSession())applySession();
-  renderMarket();updateCartBadge();
+  renderMarketFilters();renderMarket();updateCartBadge();
   ['loginName','loginEmail','loginPass'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()}));
   map=L.map('map',{center:[center.lat,center.lng],zoom:12,zoomControl:false});
   L.control.zoom({position:'topright'}).addTo(map);
@@ -883,8 +884,16 @@ function fmtD(s){const[y,m,d]=s.split('-');return`${d}/${m}`}
 function showToast(msg){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000)}
 
 // ═══ MARKETPLACE ═══
+function renderMarketFilters(){
+  const cats=['all',...[...new Set(PRODUCTS.map(p=>p.cat))]];
+  document.getElementById('marketFilters').innerHTML=cats.map(c=>{const label=c==='all'?'Todas':c;const active=marketFilter===c?' active':'';return`<button class="market-chip${active}" onclick="setMarketFilter('${c}')">${label}</button>`}).join('');
+}
+function setMarketFilter(c){marketFilter=c;renderMarketFilters();renderMarket()}
 function renderMarket(){
-  document.getElementById('marketGrid').innerHTML=PRODUCTS.map(p=>`<div class="product-card" data-pid="${p.id}"><div class="product-img">${p.icon}</div><div class="product-cat">${p.cat}</div><div class="product-name">${p.name}</div><div class="product-price">$${p.price.toLocaleString('es-AR')}</div><button class="product-add" onclick="addToCart('${p.id}',this)" aria-label="Agregar ${p.name} al carrito">+</button></div>`).join('');
+  const list=marketFilter==='all'?PRODUCTS:PRODUCTS.filter(p=>p.cat===marketFilter);
+  const grid=document.getElementById('marketGrid');
+  if(!list.length){grid.innerHTML='<div class="market-empty-filter">No hay productos en esta categoría</div>';return}
+  grid.innerHTML=list.map(p=>`<div class="product-card" data-pid="${p.id}"><div class="product-img">${p.icon}</div><div class="product-cat">${p.cat}</div><div class="product-name">${p.name}</div><div class="product-price">$${p.price.toLocaleString('es-AR')}</div><button class="product-add" onclick="addToCart('${p.id}',this)" aria-label="Agregar ${p.name} al carrito">+</button></div>`).join('');
 }
 function cartCount(){return Object.values(cart).reduce((a,b)=>a+b,0)}
 function cartTotal(){return Object.entries(cart).reduce((s,[id,q])=>{const p=PRODUCTS.find(x=>x.id===id);return s+(p?p.price*q:0)},0)}
